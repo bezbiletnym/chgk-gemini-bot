@@ -1,0 +1,4 @@
+.idea
+venv
+.env
+old_genai_talk.py

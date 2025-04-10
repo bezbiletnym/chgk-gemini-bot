@@ -19,13 +19,14 @@ prompt = f"""
     Когда я пришлю вопрос, задай мне его, отправив содержимое поля "text"
     Пожалуйста, не меняй ничего в тексте вопроса и не раскрывай ответ (поле "answer"), пока я не попрошу.
     Перед выводом вопроса выведи значение поля "endDate" с подписью "дата", название пакета (поле "packTitle") и номер вопроса из поля "number".
-    Если поля "razdatkaText" и "razdatkaPic" не пусты, пришли мне их точное содержимое с подписью "РАЗДАТОЧНЫЙ МАТЕРИАЛ."
+    Если поля "razdatkaText" не пусто, перешли мне его точное содержимое с подписью "РАЗДАТОЧНЫЙ МАТЕРИАЛ."
+    Если поле "razdatkaPic" содержит ссылку, пришли эту ссылку.
     Если ты видишь ссылку, не надо пересказывать ее содержание, просто пришли ссылку.
     Переноси строку, если встречаешь '\\n' в тексте вопроса.
 
     Когда я буду пытаться отвечать, подскажи насколько я близко к ответу по смыслу и задай направление мысли, но не раскрывай его.
     Если мой ответ есть в поле "zachet", его можно засчитать.
-    Если я отвечу правильно или попрошу назвать ответ, помимо полей "answer" и "answerPic" воспроизведи содержимое полей "comment" и "commentPic" с подписью "Комментарий:" (если они не пустые)
+    Если я отвечу правильно (как в поле "answer" или попрошу назвать ответ, помимо полей "answer", "zachet" и "answerPic" воспроизведи содержимое полей "comment" и "commentPic" с подписью "Комментарий:" (если они не пустые)
     
     Если ты все понял, в ответ на это сообщение напиши "Начинаем тренировку"
 
@@ -40,11 +41,18 @@ class Handler(telepot.helper.ChatHandler):
             self.sender.sendMessage(str(response.text))
         except Exception as err:
             print(repr(err))
+            self.sender.sendMessage(f"Упс! Что-то сломалось. Попробуй отправить сообщение еще раз.\n{repr(err)}")
 
     def __init__(self, *args, **kwargs):
         super(Handler, self).__init__(*args, **kwargs)
+        print(f"Connected user {self.chat_id}")
         self.sender.sendMessage('Начинаю новую сессию...')
-        self.genai_chat = genai_client.chats.create(model="gemini-2.0-flash-lite")
+        self.genai_chat = genai_client.chats.create(model="gemini-2.0-flash")
+        self.send_message_to_genai(message=prompt)
+
+    def restart_ai_session(self):
+        self.sender.sendMessage('Рестарт сессии...')
+        self.genai_chat = genai_client.chats.create(model="gemini-2.0-flash")
         self.send_message_to_genai(message=prompt)
 
     def open(self, initial_msg, seed):
@@ -66,6 +74,9 @@ class Handler(telepot.helper.ChatHandler):
             self.sender.sendMessage('Поиск вопроса с раздаткой может занять некоторое время...')
             question = question_getter.get_random_question(max_number=int(os.getenv("MAX_ID", 500000)), razdatka=True)
             message_to_genai = str(question)
+        elif text == '/restart_ai':
+            self.restart_ai_session()
+            return
         self.send_message_to_genai(message=message_to_genai)
 
     def on__idle(self, event):

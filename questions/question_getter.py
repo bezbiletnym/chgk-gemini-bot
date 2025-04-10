@@ -29,13 +29,17 @@ def get_question_by_id(question_id: int):
         print(repr(err))
         return {}
 
-def get_random_question(max_number: int):
+def get_random_question(max_number: int, razdatka:bool = False):
     while True:
         question_id = random.randint(1, max_number)
         question = get_question_by_id(question_id=question_id)
         if not question.get("audio") and question.get("text"): #  and question.get('razdatkaPic')
             # try again if a question has audio or a question not found
-            break
+            if razdatka and (question.get('razdatkaPic') or question.get('razdatkaText')):
+                # searching for a question with razdatka
+                break
+            elif not razdatka:
+                break
         print(f"Let's try again")
         sleep(1)
     return question

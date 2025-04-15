@@ -22,22 +22,30 @@ prompt = f"""
     Если поля "razdatkaText" не пусто, перешли мне его точное содержимое с подписью "РАЗДАТОЧНЫЙ МАТЕРИАЛ."
     Если поле "razdatkaPic" содержит ссылку, пришли эту ссылку.
     Если ты видишь ссылку, не надо пересказывать ее содержание, просто пришли ссылку.
-    Переноси строку, если встречаешь '\\n' в тексте вопроса.
+    Переноси строку, если встречаешь '\\n' в тексте вопроса или раздаточного материала.
 
     Когда я буду пытаться отвечать, подскажи насколько я близко к ответу по смыслу и задай направление мысли, но не раскрывай его.
     Если мой ответ есть в поле "zachet", его можно засчитать.
     Если я отвечу правильно (как в поле "answer" или попрошу назвать ответ, помимо полей "answer", "zachet" и "answerPic" воспроизведи содержимое полей "comment" и "commentPic" с подписью "Комментарий:" (если они не пустые)
+    Поле "answer" обязательно выводи с подписью "ОТВЕТ:"
+    Если я ответил правильно, в начале сообщения напиши об этом, но все равно выведи поле answer с подписью "ОТВЕТ:"
     
-    Если ты все понял, в ответ на это сообщение напиши "Начинаем тренировку"
+    Если ты все понял, в ответ на это сообщение напиши "Начинаем тренировку. Жду команду"
+    Просить следующий вопрос не надо, я пришлю его сам.
 
     """
 
 class Handler(telepot.helper.ChatHandler):
     def send_message_to_genai(self, message: str):
+        if message == prompt:
+            print(f"User {self.chat_id} started session")
+        else:
+            print(f"User {self.chat_id} sent message: {message}")
         try:
-            print('sending to genai...')
             response = self.genai_chat.send_message(message=message)
-            print(f"genai response: {str(response.text)}")
+            print(f"Genai response to {self.chat_id}: {str(response.text)}")
+            if "ОТВЕТ:" in str(response.text):
+                self.question_is_answered = True
             self.sender.sendMessage(str(response.text))
         except Exception as err:
             print(repr(err))
@@ -49,11 +57,19 @@ class Handler(telepot.helper.ChatHandler):
         self.sender.sendMessage('Начинаю новую сессию...')
         self.genai_chat = genai_client.chats.create(model="gemini-2.0-flash")
         self.send_message_to_genai(message=prompt)
+        self.question_counter = 0
+        self.current_question = {}
+        self.question_is_answered = False
 
     def restart_ai_session(self):
         self.sender.sendMessage('Рестарт сессии...')
         self.genai_chat = genai_client.chats.create(model="gemini-2.0-flash")
         self.send_message_to_genai(message=prompt)
+
+    def on_new_question(self, question: dict):
+        self.question_counter += 1
+        self.current_question = question
+        self.question_is_answered = False
 
     def open(self, initial_msg, seed):
         return True  # prevent on_message() from being called on the initial message
@@ -69,10 +85,12 @@ class Handler(telepot.helper.ChatHandler):
         message_to_genai = text
         if text == '/next':
             question = question_getter.get_random_question(max_number=int(os.getenv("MAX_ID", 500000)))
+            self.on_new_question(question)
             message_to_genai = str(question)
         elif text == '/next_give':
             self.sender.sendMessage('Поиск вопроса с раздаткой может занять некоторое время...')
             question = question_getter.get_random_question(max_number=int(os.getenv("MAX_ID", 500000)), razdatka=True)
+            self.on_new_question(question)
             message_to_genai = str(question)
         elif text == '/restart_ai':
             self.restart_ai_session()
@@ -80,9 +98,18 @@ class Handler(telepot.helper.ChatHandler):
         self.send_message_to_genai(message=message_to_genai)
 
     def on__idle(self, event):
-        self.sender.sendMessage(f'Сессия закончена. Отправь любое сообщение, чтобы начать новую')
+        last_message = (f'Сессия закончена. Отправь любое сообщение, чтобы начать новую.\n'
+                        f'Вопросов сыграно: {self.question_counter}')
+        if not self.question_is_answered:
+            last_message += f"\n\nОтвет на последний вопрос: {self.current_question.get('answer')}"
+            if self.current_question.get('answerPic'):
+                last_message += f"\n{self.current_question.get('answerPic')}"
+            if self.current_question.get('comment'):
+                last_message += f"\nКомментарий: {self.current_question.get('comment')}"
+            if self.current_question.get('commentPic'):
+                last_message += f"\n{self.current_question.get('commentPic')}"
+        self.sender.sendMessage(last_message)
         self.close()
-
 
 TOKEN = os.getenv('AUTHORIZATION_TOKEN')
 

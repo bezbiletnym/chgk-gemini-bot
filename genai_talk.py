@@ -2,7 +2,6 @@ import time
 import os, telepot
 
 import dotenv
-from Tools.demo.mcast import sender
 from google import genai
 from questions import question_getter
 from telepot.loop import MessageLoop

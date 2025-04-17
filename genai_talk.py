@@ -9,8 +9,6 @@ from telepot.delegate import per_chat_id, create_open, pave_event_space
 
 dotenv.load_dotenv()
 
-token = os.getenv('AUTHORIZATION_TOKEN')
-
 genai_client = genai.Client(api_key=os.getenv("API_KEY"))
 
 prompt = f"""
@@ -22,7 +20,7 @@ prompt = f"""
     Если поля "razdatkaText" не пусто, перешли мне его точное содержимое с подписью "РАЗДАТОЧНЫЙ МАТЕРИАЛ."
     Если поле "razdatkaPic" содержит ссылку, пришли эту ссылку.
     Если ты видишь ссылку, не надо пересказывать ее содержание, просто пришли ссылку.
-    Переноси строку, если встречаешь '\\n' в тексте вопроса или раздаточного материала.
+    Переноси строку, если встречаешь '\\n' в тексте вопроса, раздаточного материала, ответа или комментария.
 
     Когда я буду пытаться отвечать, подскажи насколько я близко к ответу по смыслу и задай направление мысли, но не раскрывай его.
     Если мой ответ есть в поле "zachet", его можно засчитать.
@@ -37,13 +35,14 @@ prompt = f"""
 
 class Handler(telepot.helper.ChatHandler):
     def send_message_to_genai(self, message: str):
+        user_log_str = f"{self.chat_id} (@{self.username})"
         if message == prompt:
-            print(f"User {self.chat_id} started session")
+            print(f"User {user_log_str} started session")
         else:
-            print(f"User {self.chat_id} sent message: {message}")
+            print(f"User {user_log_str} sent message: {message}")
         try:
             response = self.genai_chat.send_message(message=message)
-            print(f"Genai response to {self.chat_id}: {str(response.text)}")
+            print(f"Genai response to {user_log_str}: {str(response.text)}")
             if "ОТВЕТ:" in str(response.text):
                 self.question_is_answered = True
             self.sender.sendMessage(str(response.text))
@@ -53,7 +52,10 @@ class Handler(telepot.helper.ChatHandler):
 
     def __init__(self, *args, **kwargs):
         super(Handler, self).__init__(*args, **kwargs)
-        print(f"Connected user {self.chat_id}")
+        chat_member = bot.getChatMember(chat_id=self.chat_id, user_id=self.chat_id)
+        self.username = str(chat_member.get('user', {}).get('username'))
+        print(f"Connected user {self.chat_id} (@{self.username})")
+
         self.sender.sendMessage('Начинаю новую сессию...')
         self.genai_chat = genai_client.chats.create(model="gemini-2.0-flash")
         self.send_message_to_genai(message=prompt)

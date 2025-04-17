@@ -2,6 +2,7 @@ import time
 import os, telepot
 
 import dotenv
+from Tools.demo.mcast import sender
 from google import genai
 from questions import question_getter
 from telepot.loop import MessageLoop
@@ -33,16 +34,26 @@ prompt = f"""
 
     """
 
-class Handler(telepot.helper.ChatHandler):
-    def send_message_to_genai(self, message: str):
-        user_log_str = f"{self.chat_id} (@{self.username})"
-        if message == prompt:
-            print(f"User {user_log_str} started session")
+
+def is_authorized(func):  # Decorator for checking authorization
+    def wrapper(self, *args, **kwargs):
+        if self.authorized:
+            func(self, *args, **kwargs)
         else:
-            print(f"User {user_log_str} sent message: {message}")
+            print(f"User {self.user_log_str} is not authorized")
+            self.close()
+    return wrapper
+
+class Handler(telepot.helper.ChatHandler):
+    @is_authorized
+    def send_message_to_genai(self, message: str):
+        if message == prompt:
+            print(f"User {self.user_log_str} started session")
+        else:
+            print(f"User {self.user_log_str} sent message: {message}")
         try:
             response = self.genai_chat.send_message(message=message)
-            print(f"Genai response to {user_log_str}: {str(response.text)}")
+            print(f"Genai response to {self.user_log_str}: {str(response.text)}")
             if "ОТВЕТ:" in str(response.text):
                 self.question_is_answered = True
             self.sender.sendMessage(str(response.text))
@@ -54,20 +65,31 @@ class Handler(telepot.helper.ChatHandler):
         super(Handler, self).__init__(*args, **kwargs)
         chat_member = bot.getChatMember(chat_id=self.chat_id, user_id=self.chat_id)
         self.username = str(chat_member.get('user', {}).get('username'))
-        print(f"Connected user {self.chat_id} (@{self.username})")
-
-        self.sender.sendMessage('Начинаю новую сессию...')
-        self.genai_chat = genai_client.chats.create(model="gemini-2.0-flash")
-        self.send_message_to_genai(message=prompt)
+        self.user_log_str = f"{self.chat_id} (@{self.username})"
+        print(f"Connected user {self.user_log_str}")
         self.question_counter = 0
         self.current_question = {}
         self.question_is_answered = False
 
+        # Authorization
+        dotenv.load_dotenv(override=True) # To change env without reloading
+        if not str(self.chat_id) in os.getenv('ALLOWED_ID_LIST').split(','):
+            self.sender.sendMessage(f'Вход только для пони!\n'
+                                    f'Если ты пони, попроси доступ в нашем чате для своего ID: {self.chat_id}')
+            self.authorized = False
+        else:
+            self.authorized = True
+            self.sender.sendMessage('Начинаю новую сессию...')
+            self.genai_chat = genai_client.chats.create(model="gemini-2.0-flash")
+            self.send_message_to_genai(message=prompt)
+
+    @is_authorized
     def restart_ai_session(self):
         self.sender.sendMessage('Рестарт сессии...')
         self.genai_chat = genai_client.chats.create(model="gemini-2.0-flash")
         self.send_message_to_genai(message=prompt)
 
+    @is_authorized
     def on_new_question(self, question: dict):
         self.question_counter += 1
         self.current_question = question
@@ -76,8 +98,12 @@ class Handler(telepot.helper.ChatHandler):
     def open(self, initial_msg, seed):
         return True  # prevent on_message() from being called on the initial message
 
+    @is_authorized
     def on_chat_message(self, msg):
         content_type, chat_type, chat_id = telepot.glance(msg)
+
+        if not self.authorized:
+            return
 
         if content_type != 'text':
             self.sender.sendMessage('Пожалуйста, отправь текст')
@@ -99,6 +125,7 @@ class Handler(telepot.helper.ChatHandler):
             return
         self.send_message_to_genai(message=message_to_genai)
 
+    @is_authorized
     def on__idle(self, event):
         last_message = (f'Сессия закончена. Отправь любое сообщение, чтобы начать новую.\n'
                         f'Вопросов сыграно: {self.question_counter}')

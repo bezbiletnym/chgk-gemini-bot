@@ -94,6 +94,16 @@ class Handler(telepot.helper.ChatHandler):
         self.current_question = question
         self.question_is_answered = False
 
+
+    def is_valid_question(self, question: dict) -> bool:
+        if question == {}:
+            self.sender.sendMessage('Упс! Не удалось получить вопрос. Попробуй еще раз')
+            return False
+        else:
+            print("Question is valid")
+            return True
+
+
     def open(self, initial_msg, seed):
         return True  # prevent on_message() from being called on the initial message
 
@@ -112,13 +122,21 @@ class Handler(telepot.helper.ChatHandler):
         message_to_genai = text
         if text == '/next':
             question = question_getter.get_random_question(max_number=int(os.getenv("MAX_ID", 500000)))
-            self.on_new_question(question)
-            message_to_genai = str(question)
+            if self.is_valid_question(question):
+                self.on_new_question(question)
+                message_to_genai = str(question)
+                print(f"message is: {message_to_genai}")
+            else: return
         elif text == '/next_give':
-            self.sender.sendMessage('Поиск вопроса с раздаткой может занять некоторое время...')
-            question = question_getter.get_random_question(max_number=int(os.getenv("MAX_ID", 500000)), razdatka=True)
-            self.on_new_question(question)
-            message_to_genai = str(question)
+            # Razdatka is temporarily disabled until getting access to API
+            #self.sender.sendMessage('Поиск вопроса с раздаткой может занять некоторое время...')
+            #question = question_getter.get_random_question(max_number=int(os.getenv("MAX_ID", 500000)), razdatka=True)
+            #if self.is_valid_question(question):
+                #self.on_new_question(question)
+                #message_to_genai = str(question)
+            #else: return
+            self.sender.sendMessage('Функция временно отключена, чтобы не привлекать внимание санитаров. Используй /next')
+            return
         elif text == '/restart_ai':
             self.restart_ai_session()
             return

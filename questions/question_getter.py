@@ -2,6 +2,7 @@ import random
 from time import sleep
 
 import requests
+from questions import question_parser
 
 question_api_url = 'https://gotquestions.online/api/question/'
 site_url = 'https://gotquestions.online'
@@ -21,25 +22,30 @@ def complete_pic_urls(json_data: dict) -> dict:
 def get_question_by_id(question_id: int):
     try:
         print(f"Getting a question with id {question_id}...")
-        response = requests.get(url=question_api_url + str(question_id), headers=headers)
-        question_json = response.json()
+        #response = requests.get(url=question_api_url + str(question_id), headers=headers)
+        #question_json = response.json()
+        # is temporarily disabled until getting access to API
+
+        question_json = question_parser.open_question_by_id(id=question_id)
         question_json.update(complete_pic_urls(question_json))
         return question_json
     except Exception as err:
         print(repr(err))
         return {}
 
-def get_random_question(max_number: int, razdatka:bool = False):
-    while True:
+def get_random_question(max_number: int, razdatka:bool = False, max_retries:int = 10):
+    question = {}
+    for i in range(max_retries):
         question_id = random.randint(1, max_number)
         question = get_question_by_id(question_id=question_id)
-        if not question.get("audio") and question.get("text"): #  and question.get('razdatkaPic')
+        if not question.get("audio") and question.get("text"):
             # try again if a question has audio or a question not found
-            if razdatka and (question.get('razdatkaPic') or question.get('razdatkaText')):
+            #if razdatka and (question.get('razdatkaPic') or question.get('razdatkaText')):
                 # searching for a question with razdatka
-                break
-            elif not razdatka:
-                break
+                #break
+            #elif not razdatka:
+                #break
+            return question # Razdatka is temporarily disabled until getting access to API
         print(f"Let's try again")
         sleep(1)
     return question

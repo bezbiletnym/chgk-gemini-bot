@@ -38,8 +38,8 @@ def get_random_question(max_number: int, razdatka:bool = False, max_retries:int 
     for i in range(max_retries):
         question_id = random.randint(1, max_number)
         question = get_question_by_id(question_id=question_id)
-        if not question.get("audio") and question.get("text"):
-            # try again if a question has audio or a question not found
+        if not question.get("audio") and question.get("text") and question.get("endDate"):
+            # try again if a question has audio or a question not found (404 questions don't have endDate)
             #if razdatka and (question.get('razdatkaPic') or question.get('razdatkaText')):
                 # searching for a question with razdatka
                 #break

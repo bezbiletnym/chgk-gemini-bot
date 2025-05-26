@@ -10,7 +10,7 @@ from telepot.delegate import per_chat_id, create_open, pave_event_space
 dotenv.load_dotenv()
 
 genai_client = genai.Client(api_key=os.getenv("API_KEY"))
-pdf_file = genai_client.files.upload(file="files/how_to_get_questions.pdf")
+pdf_file = genai_client.files.upload(file=os.getenv("PDF_PATH"))
 
 prompt = f"""
     Привет! Ты — тренер по игре "Что?Где?Когда?".

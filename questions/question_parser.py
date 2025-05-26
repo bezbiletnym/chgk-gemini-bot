@@ -20,6 +20,7 @@ def open_question_by_id(id: int):
                         key = item.split(':', 1)[0].strip('\"')
                         value = item.split(':', 1)[1].strip('\"')
                         value = value.replace(r"\\\\", '')
+                        value = value.replace(r'\\"', '\"')
                         new_dict.update({key: value})
                 print(f"Parsed {new_dict}")
                 return new_dict

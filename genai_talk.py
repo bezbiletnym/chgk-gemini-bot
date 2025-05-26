@@ -10,9 +10,10 @@ from telepot.delegate import per_chat_id, create_open, pave_event_space
 dotenv.load_dotenv()
 
 genai_client = genai.Client(api_key=os.getenv("API_KEY"))
+pdf_file = genai_client.files.upload(file="files/how_to_get_questions.pdf")
 
 prompt = f"""
-    Привет! Ты — тренер по игре Что?Где?Когда?
+    Привет! Ты — тренер по игре "Что?Где?Когда?".
     Я буду отправлять тебе вопросы в формате JSON.
     Когда я пришлю вопрос, задай мне его, отправив содержимое поля "text"
     Пожалуйста, не меняй ничего в тексте вопроса и не раскрывай ответ (поле "answer"), пока я не попрошу.
@@ -22,15 +23,21 @@ prompt = f"""
     Если ты видишь ссылку, не надо пересказывать ее содержание, просто пришли ссылку.
     Переноси строку, если встречаешь '\\n' в тексте вопроса, раздаточного материала, ответа или комментария.
 
+    В приложенном PDF-файле объясняются основные методики взятия вопросов в "Что?Где?Когда?".
     Когда я буду пытаться отвечать, подскажи насколько я близко к ответу по смыслу и задай направление мысли, но не раскрывай его.
+    Подсказывая, старайся основываться на методиках из приложенного файла, логике замен и комментариях к вопросам.
     Если мой ответ есть в поле "zachet", его можно засчитать.
     Если я отвечу правильно (как в поле "answer" или попрошу назвать ответ, помимо полей "answer", "zachet" и "answerPic" воспроизведи содержимое полей "comment" и "commentPic" с подписью "Комментарий:" (если они не пустые)
     Поле "answer" обязательно выводи с подписью "ОТВЕТ:"
     Если я ответил правильно, в начале сообщения напиши об этом, но все равно выведи поле answer с подписью "ОТВЕТ:"
     
+    Пожалуйста, подсчитывай количество данных мной правильных ответов.
+    После каждого выведенного ответа, пожалуйста, отступай строчку и выводи мой результат в следующем формате:
+    "Текущий результат: [КОЛИЧЕСТВО ВЕРНЫХ ОТВЕТОВ]/[КОЛИЧЕСТВО ЗАДАННЫХ ВОПРОСОВ]".
+    Если я попросил тебя дать ответ на вопрос, а сам я его не дал, такой ответ засчитывать не надо.
+    
     Если ты все понял, в ответ на это сообщение напиши "Начинаем тренировку. Жду команду"
     Просить следующий вопрос не надо, я пришлю его сам.
-
     """
 
 
@@ -45,8 +52,8 @@ def is_authorized(func):  # Decorator for checking authorization
 
 class Handler(telepot.helper.ChatHandler):
     @is_authorized
-    def send_message_to_genai(self, message: str):
-        if message == prompt:
+    def send_message_to_genai(self, message):
+        if prompt in message:
             print(f"User {self.user_log_str} started session")
         else:
             print(f"User {self.user_log_str} sent message: {message}")
@@ -80,7 +87,7 @@ class Handler(telepot.helper.ChatHandler):
             self.authorized = True
             self.sender.sendMessage('Начинаю новую сессию...')
             self.genai_chat = genai_client.chats.create(model="gemini-2.0-flash")
-            self.send_message_to_genai(message=prompt)
+            self.send_message_to_genai(message=[prompt, pdf_file])
 
     @is_authorized
     def restart_ai_session(self):
@@ -144,6 +151,11 @@ class Handler(telepot.helper.ChatHandler):
 
     @is_authorized
     def on__idle(self, event):
+        self.send_message_to_genai(message=
+                                   "Пожалуйста, выведи итоговый результат и сделай разбор моих ответов, "
+                                   "используя знания из файла и логику."
+                                   "На этом тренировка закончена. Спасибо!")
+        genai_client.files.delete(name=pdf_file.name)
         last_message = (f'Сессия закончена. Отправь любое сообщение, чтобы начать новую.\n'
                         f'Вопросов сыграно: {self.question_counter}')
         if not self.question_is_answered:
@@ -158,7 +170,6 @@ class Handler(telepot.helper.ChatHandler):
         self.close()
 
 TOKEN = os.getenv('AUTHORIZATION_TOKEN')
-
 bot = telepot.DelegatorBot(TOKEN, [
     pave_event_space()(
         per_chat_id(), create_open, Handler, timeout=300),

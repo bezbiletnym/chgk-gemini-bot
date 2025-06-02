@@ -10,7 +10,6 @@ from telepot.delegate import per_chat_id, create_open, pave_event_space
 dotenv.load_dotenv()
 
 genai_client = genai.Client(api_key=os.getenv("API_KEY"))
-pdf_file = genai_client.files.upload(file=os.getenv("PDF_PATH"))
 
 prompt = f"""
     Привет! Ты — тренер по игре "Что?Где?Когда?".
@@ -76,6 +75,7 @@ class Handler(telepot.helper.ChatHandler):
         self.question_counter = 0
         self.current_question = {}
         self.question_is_answered = False
+        self.pdf_file = genai_client.files.upload(file=os.getenv("PDF_PATH"))
 
         # Authorization
         dotenv.load_dotenv(override=True) # To change env without reloading
@@ -86,8 +86,8 @@ class Handler(telepot.helper.ChatHandler):
         else:
             self.authorized = True
             self.sender.sendMessage('Начинаю новую сессию...')
-            self.genai_chat = genai_client.chats.create(model="gemini-2.0-flash")
-            self.send_message_to_genai(message=[prompt, pdf_file])
+            self.genai_chat = genai_client.chats.create(model="gemini-2.0-flash-lite")
+            self.send_message_to_genai(message=[prompt, self.pdf_file])
 
     @is_authorized
     def restart_ai_session(self):
@@ -155,7 +155,7 @@ class Handler(telepot.helper.ChatHandler):
                                    "Пожалуйста, выведи итоговый результат и сделай разбор моих ответов, "
                                    "используя знания из файла и логику."
                                    "На этом тренировка закончена. Спасибо!")
-        genai_client.files.delete(name=pdf_file.name)
+        genai_client.files.delete(name=self.pdf_file.name)
         last_message = (f'Сессия закончена. Отправь любое сообщение, чтобы начать новую.\n'
                         f'Вопросов сыграно: {self.question_counter}')
         if not self.question_is_answered:

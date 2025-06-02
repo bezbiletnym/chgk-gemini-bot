@@ -3,7 +3,7 @@ import os, telepot
 
 import dotenv
 from google import genai
-from google.genai.errors import ServerError
+from google.genai.errors import ServerError, ClientError
 
 from questions import question_getter
 from telepot.loop import MessageLoop
@@ -12,7 +12,7 @@ from telepot.delegate import per_chat_id, create_open, pave_event_space
 dotenv.load_dotenv()
 
 genai_client = genai.Client(api_key=os.getenv("API_KEY"))
-models_pool = ["gemini-2.0-flash", "gemini-2.0-flash-lite"]
+models_pool = ["gemini-2.0-flash", "gemini-2.0-flash-001", "gemini-2.5-flash-preview-05-20", "gemini-2.0-flash-lite"]
 
 prompt = f"""
     Привет! Ты — тренер по игре "Что?Где?Когда?".
@@ -27,6 +27,7 @@ prompt = f"""
 
     В приложенном PDF-файле объясняются основные методики взятия вопросов в "Что?Где?Когда?".
     Когда я буду пытаться отвечать, подскажи насколько я близко к ответу по смыслу и задай направление мысли, но не раскрывай его.
+    Для подсказки дождись моей попытки ответить, подсказывать сразу не надо.
     Подсказывая, старайся основываться на методиках из приложенного файла, логике замен и комментариях к вопросам.
     Если мой ответ есть в поле "zachet", его можно засчитать.
     Если я отвечу правильно (как в поле "answer" или попрошу назвать ответ, помимо полей "answer", "zachet" и "answerPic" воспроизведи содержимое полей "comment" и "commentPic" с подписью "Комментарий:" (если они не пустые)
@@ -70,6 +71,10 @@ class Handler(telepot.helper.ChatHandler):
             print(repr(err))
             self.sender.sendMessage(f"Ошибка на стороне гугла.\n{repr(err)}")
             raise ServerError(code=err.code, response_json={})
+        except ClientError as err:
+            print(repr(err))
+            self.sender.sendMessage(f"Ошибка на стороне клиента Gemini.\n{repr(err)}")
+            raise ClientError(code=err.code, response_json={})
         except Exception as err:
             print(repr(err))
             self.sender.sendMessage(f"Упс! Что-то сломалось. Попробуй отправить сообщение еще раз.\n{repr(err)}")
@@ -106,6 +111,8 @@ class Handler(telepot.helper.ChatHandler):
                 self.send_message_to_genai(message=[prompt, self.pdf_file])
             except ServerError as err:
                 self.sender.sendMessage(f"{model} недоступна, пробуем другую модель")
+            except ClientError as err:
+                self.sender.sendMessage(f"Клиентская проблема с {model}, пробуем другую модель")
             else: return
         self.sender.sendMessage("Все текущие модели недоступны, попробуй позже")
 

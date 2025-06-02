@@ -21,7 +21,9 @@ def open_question_by_id(id: int):
                         value = item.split(':', 1)[1].strip('\"')
                         value = value.replace(r"\\\\", '')
                         value = value.replace(r'\\"', '\"')
-                        new_dict.update({key: value})
+                        if (key != 'answer' or new_dict.get("answer") is None) and (key != "comment" or new_dict.get("comment") is None):
+                            # To prevent appellations answers from parsing
+                            new_dict.update({key: value})
                 print(f"Parsed {new_dict}")
                 return new_dict
         return {}

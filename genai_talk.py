@@ -3,6 +3,8 @@ import os, telepot
 
 import dotenv
 from google import genai
+from google.genai.errors import ServerError
+
 from questions import question_getter
 from telepot.loop import MessageLoop
 from telepot.delegate import per_chat_id, create_open, pave_event_space
@@ -10,6 +12,7 @@ from telepot.delegate import per_chat_id, create_open, pave_event_space
 dotenv.load_dotenv()
 
 genai_client = genai.Client(api_key=os.getenv("API_KEY"))
+models_pool = ["gemini-2.0-flash", "gemini-2.0-flash-lite"]
 
 prompt = f"""
     Привет! Ты — тренер по игре "Что?Где?Когда?".
@@ -34,6 +37,7 @@ prompt = f"""
     После каждого выведенного ответа, пожалуйста, отступай строчку и выводи мой результат в следующем формате:
     "Текущий результат: [КОЛИЧЕСТВО ВЕРНЫХ ОТВЕТОВ]/[КОЛИЧЕСТВО ЗАДАННЫХ ВОПРОСОВ]".
     Если я попросил тебя дать ответ на вопрос, а сам я его не дал, такой ответ засчитывать не надо.
+    Данные тобой подсказки всчитывать в этот результат не надо.
     
     Если ты все понял, в ответ на это сообщение напиши "Начинаем тренировку. Жду команду"
     Просить следующий вопрос не надо, я пришлю его сам.
@@ -62,9 +66,14 @@ class Handler(telepot.helper.ChatHandler):
             if "ОТВЕТ:" in str(response.text):
                 self.question_is_answered = True
             self.sender.sendMessage(str(response.text))
+        except ServerError as err:
+            print(repr(err))
+            self.sender.sendMessage(f"Ошибка на стороне гугла.\n{repr(err)}")
+            raise ServerError(code=err.code, response_json={})
         except Exception as err:
             print(repr(err))
             self.sender.sendMessage(f"Упс! Что-то сломалось. Попробуй отправить сообщение еще раз.\n{repr(err)}")
+            raise Exception
 
     def __init__(self, *args, **kwargs):
         super(Handler, self).__init__(*args, **kwargs)
@@ -76,6 +85,7 @@ class Handler(telepot.helper.ChatHandler):
         self.current_question = {}
         self.question_is_answered = False
         self.pdf_file = genai_client.files.upload(file=os.getenv("PDF_PATH"))
+        self.genai_chat = None
 
         # Authorization
         dotenv.load_dotenv(override=True) # To change env without reloading
@@ -85,15 +95,20 @@ class Handler(telepot.helper.ChatHandler):
             self.authorized = False
         else:
             self.authorized = True
-            self.sender.sendMessage('Начинаю новую сессию...')
-            self.genai_chat = genai_client.chats.create(model="gemini-2.0-flash")
-            self.send_message_to_genai(message=[prompt, self.pdf_file])
+            self.start_ai_session()
 
     @is_authorized
-    def restart_ai_session(self):
-        self.sender.sendMessage('Рестарт сессии...')
-        self.genai_chat = genai_client.chats.create(model="gemini-2.0-flash")
-        self.send_message_to_genai(message=prompt)
+    def start_ai_session(self):
+        for model in models_pool:
+            try:
+                self.sender.sendMessage(f'Начинаю новую сессию... Модель {model}')
+                self.genai_chat = genai_client.chats.create(model=model)
+                self.send_message_to_genai(message=[prompt, self.pdf_file])
+            except ServerError as err:
+                self.sender.sendMessage(f"{model} недоступна, пробуем другую модель")
+            else: return
+        self.sender.sendMessage("Все текущие модели недоступны, попробуй позже")
+
 
     @is_authorized
     def on_new_question(self, question: dict):
@@ -145,7 +160,7 @@ class Handler(telepot.helper.ChatHandler):
             self.sender.sendMessage('Функция временно отключена, чтобы не привлекать внимание санитаров. Используй /next')
             return
         elif text == '/restart_ai':
-            self.restart_ai_session()
+            self.start_ai_session()
             return
         self.send_message_to_genai(message=message_to_genai)
 

@@ -86,7 +86,7 @@ class Handler(telepot.helper.ChatHandler):
         else:
             self.authorized = True
             self.sender.sendMessage('Начинаю новую сессию...')
-            self.genai_chat = genai_client.chats.create(model="gemini-2.0-flash-lite")
+            self.genai_chat = genai_client.chats.create(model="gemini-2.0-flash")
             self.send_message_to_genai(message=[prompt, self.pdf_file])
 
     @is_authorized

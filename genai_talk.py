@@ -12,7 +12,7 @@ from telepot.delegate import per_chat_id, create_open, pave_event_space
 dotenv.load_dotenv()
 
 genai_client = genai.Client(api_key=os.getenv("API_KEY"))
-models_pool = ["gemini-2.0-flash", "gemini-2.0-flash-001", "gemini-2.5-flash-preview-05-20", "gemini-2.0-flash-lite"]
+models_pool = ["gemini-2.5-flash", "gemini-2.5-flash-preview-05-20", "gemini-2.0-flash", "gemini-2.0-flash-001", "gemini-2.0-flash-lite"]
 
 prompt = f"""
     Привет! Ты — тренер по игре "Что?Где?Когда?".

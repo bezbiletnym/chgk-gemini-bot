@@ -22,11 +22,10 @@ def complete_pic_urls(json_data: dict) -> dict:
 def get_question_by_id(question_id: int):
     try:
         print(f"Getting a question with id {question_id}...")
-        #response = requests.get(url=question_api_url + str(question_id), headers=headers)
-        #question_json = response.json()
-        # is temporarily disabled until getting access to API
+        response = requests.get(url=f"{question_api_url}{str(question_id)}/?format=json", headers=headers)
+        question_json = response.json()
 
-        question_json = question_parser.open_question_by_id(id=question_id)
+        #question_json = question_parser.open_question_by_id(id=question_id)
         question_json.update(complete_pic_urls(question_json))
         return question_json
     except Exception as err:

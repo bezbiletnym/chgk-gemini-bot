@@ -109,7 +109,8 @@ class Handler(telepot.helper.ChatHandler):
     def start_ai_session(self):
         for model in models_pool:
             try:
-                self.sender.sendMessage(f'Начинаю новую сессию... Модель {model}')
+                self.sender.sendMessage(f'Начинаю новую сессию... Модель {model}.\n'
+                                        f'Пожалуйста, дождись начала тренировки')
                 self.genai_chat = genai_client.chats.create(model=model)
                 self.send_message_to_genai(message=[prompt, self.pdf_file])
             except ServerError as err:

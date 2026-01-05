@@ -4,6 +4,8 @@ from time import sleep
 import requests
 from questions import question_parser
 
+import os
+
 question_api_url = 'https://gotquestions.online/api/question/'
 site_url = 'https://gotquestions.online'
 headers = {'Content-Type': 'application/json'}
@@ -32,12 +34,21 @@ def get_question_by_id(question_id: int):
         print(repr(err))
         return {}
 
+
+def validate_date(end_date: str):
+    # endDate format is "2022-01-30 09:00:00"
+
+    year = int(os.getenv("START_YEAR"))
+    return int(end_date[:4]) >= year
+
+
 def get_random_question(max_number: int, razdatka:bool = False, max_retries:int = 10):
     question = {}
     for i in range(max_retries):
         question_id = random.randint(1, max_number)
         question = get_question_by_id(question_id=question_id)
-        if not question.get("audio") and question.get("text") and question.get("endDate"):
+        if (not question.get("audio") and question.get("text") and validate_date(question.get("endDate", "1900"))
+                and not "рейн-ринг" in question.get("packTitle")):
             # try again if a question has audio or a question not found (404 questions don't have endDate)
             #if razdatka and (question.get('razdatkaPic') or question.get('razdatkaText')):
                 # searching for a question with razdatka
